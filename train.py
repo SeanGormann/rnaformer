@@ -10,8 +10,8 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 bs = 128
 num_workers = 2
 
-#df = pd.read_parquet('dataset/train_data.parquet')
-df  = pd.read_parquet('train_data_filtered.parquet')
+df = pd.read_parquet('dataset/train_data.parquet')
+#df  = pd.read_parquet('train_data_filtered.parquet')
 
 #sequences = df['sequence'].values  # Assuming df is your DataFrame and it has a column named 'sequence'
 #k = 3  # The length of the k-mers
@@ -44,15 +44,11 @@ for fold in [0]: # running multiple folds at kaggle may cause OOM
     data = DataLoaders(dl_train, dl_val)
     model = RNA_Model()
     model = model.to(device)
-    
-    class PrintLossCallback(Callback):
-        def after_epoch(self):
-            print(f"Epoch {self.epoch}: Train loss: {self.learn.recorder.losses[-1]:.4f}, Valid loss: {self.learn.recorder.values[-1][0]:.4f}")
 
     print("Starting training...")
     learn = Learner(
         data, model, loss_func=adjusted_loss, 
-        cbs=[GradientClip(3.0), PrintLossCallback()],  # Added PrintLossCallback here
+        cbs=[GradientClip(3.0)],  # Added PrintLossCallback here
         metrics=[MAE()]
     ).to_fp16()
     
