@@ -19,7 +19,7 @@ df = pd.read_parquet('dataset/train_data.parquet')
 
 
 
-for fold in [0]: # running multiple folds at kaggle may cause OOM
+for fold in [0, 1]: # running multiple folds at kaggle may cause OOM
     ds_train = RNA_Dataset(df, mode='train', fold=fold, nfolds=nfolds)
     ds_train_len = RNA_Dataset(df, mode='train', fold=fold,
                 nfolds=nfolds, mask_only=True)
@@ -52,10 +52,10 @@ for fold in [0]: # running multiple folds at kaggle may cause OOM
         metrics=[MAE()]
     ).to_fp16()
     
-    OUT = "./models/"
+    OUT = "models/"
     fname = "rnaformer-66"
     
-    learn.fit_one_cycle(45, lr_max=45e-5, wd=0.05, pct_start=0.02)
+    learn.fit_one_cycle(100, lr_max=45e-5, wd=0.05, pct_start=0.02)
     
     print("Training finished. Saving the model...")
     model_path = os.path.join(OUT, f'{fname}_{fold}.pth')
