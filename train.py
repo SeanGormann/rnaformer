@@ -55,7 +55,7 @@ for fold in [0, 1]: # running multiple folds at kaggle may cause OOM
     OUT = "models/"
     fname = "rnaformer-66"
     
-    learn.fit_one_cycle(100, lr_max=45e-5, wd=0.05, pct_start=0.02)
+    learn.fit_one_cycle(1, lr_max=45e-5, wd=0.05, pct_start=0.02)
     
     print("Training finished. Saving the model...")
     model_path = os.path.join(OUT, f'{fname}_{fold}.pth')
