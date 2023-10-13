@@ -162,8 +162,12 @@ class MAE(Metric):
 
 
 
+
 def push_to_github(file_path, commit_message):
     try:
+        # Pull the latest changes from the remote repository
+        subprocess.run(["git", "pull", "origin", "main"], check=True)
+        
         # Add the file to the local repository
         subprocess.run(["git", "add", file_path], check=True)
         
@@ -171,7 +175,7 @@ def push_to_github(file_path, commit_message):
         subprocess.run(["git", "commit", "-m", commit_message], check=True)
         
         # Push the commit to the remote repository
-        subprocess.run(["git", "push"], check=True)
+        subprocess.run(["git", "push", "origin", "main"], check=True)
         print(f"Successfully pushed {file_path} to GitHub.")
         
     except subprocess.CalledProcessError as e:
