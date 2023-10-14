@@ -41,7 +41,7 @@ class RNA_Dataset(Dataset):
         df_DMS = df_DMS.iloc[split].reset_index(drop=True)
 
         #m = (df_2A3['SN_filter'].values > 0) & (df_DMS['SN_filter'].values > 0)
-        m = (df_2A3['signal_to_noise'].values >= 0.6) & (df_DMS['signal_to_noise'].values >= 0.6)
+        m = (df_2A3['signal_to_noise'].values >= 0.5) & (df_DMS['signal_to_noise'].values >= 0.5)
         df_2A3 = df_2A3.loc[m].reset_index(drop=True)
         df_DMS = df_DMS.loc[m].reset_index(drop=True)
 

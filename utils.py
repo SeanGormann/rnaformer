@@ -67,7 +67,7 @@ def adjusted_loss(pred, target):
     p = pred[target['mask'][:,:pred.shape[1]]]
 
     # Extracting true values and clipping them
-    y = target['react'][target['mask']].clip(0, .83)
+    y = target['react'][target['mask']].clip(0, 1)
 
     # Calculating the unweighted loss
     individual_losses = F.l1_loss(p, y, reduction='none')
@@ -126,7 +126,7 @@ def loss(pred, target):
 
 def loss(pred,target):
     p = pred[target['mask'][:,:pred.shape[1]]]
-    y = target['react'][target['mask']].clip(0, .83) #.clip(.67,1.5) .clip(0,1)
+    y = target['react'][target['mask']].clip(0, 1) #.clip(.67,1.5) .clip(0,1)
 
     not_unk = ~torch.isnan(y)
     p = p[not_unk]
@@ -148,7 +148,7 @@ class MAE(Metric):
 
     def accumulate(self, learn):
         x = learn.pred[learn.y['mask'][:,:learn.pred.shape[1]]]
-        y = learn.y['react'][learn.y['mask']].clip(0,.83) #.clip(0,.83)  .clip(0,1)
+        y = learn.y['react'][learn.y['mask']].clip(0,1) #.clip(0,.83)  .clip(0,1)
         self.x.append(x)
         self.y.append(y)
 
