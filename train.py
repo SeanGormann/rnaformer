@@ -19,6 +19,8 @@ df = pd.read_parquet('dataset/train_data.parquet')
 
 seed_everything(2023)
 
+
+
 exp1 = {
     "fname": "rnaformer-96",
     "fold": 5,
@@ -52,6 +54,17 @@ exp3 = {
 
 }
 
+expp = {
+    "fname": "rnaformer-99",
+    "fold": 0,
+    "nfolds": 5,
+    "s2n": 0.6,
+    "perturb": True,
+    "lr": 1e-3,
+    "epochs": 80,
+}
+
+"""
 ## Do next
 exp4 = {
     "fname": "rnaformer-99",
@@ -63,7 +76,7 @@ exp4 = {
     "epochs": 100,
     "zlossw": 1e-4,
 
-}
+}"""
 
 cfg1 = {
     'rna_model_dim': 192, # 300,
@@ -77,10 +90,13 @@ cfg1 = {
     'rna_model_ffn_multiplier': 5,
 }
 
-experiments = [exp1, exp2, exp3]
+
+#experiments = [exp1, exp2, exp3]
+
+experiments = [(expp, cfg1), (exp1, None), (exp2, None),(exp3, None)]
 
 #for fold in [0]: 
-for exp in experiments: 
+for exp, cfg in experiments: 
     ds_train = RNA_Dataset(df, mode='train', fold=exp["fold"], nfolds=exp["nfolds"], perturb = exp["perturb"], s2n = exp["s2n"])
     ds_train_len = RNA_Dataset(df, mode='train', fold=exp["fold"],
                 nfolds=exp["nfolds"], mask_only=True, perturb = exp["perturb"], s2n = exp["s2n"])
@@ -103,7 +119,14 @@ for exp in experiments:
 
     print("Preparing the model...")
     data = DataLoaders(dl_train, dl_val)
-    model = RNA_Model()
+
+    if cfg == None:
+        model = RNA_Model()
+    else:
+        CFG = cfg
+        model = RNA_Former()
+        print(f'Number of parameters: {sum(p.numel() for p in model.parameters())}')
+        
     model = model.to(device)
     z_loss = AdjustedZLoss(z_loss_weight=1e-3)
 
