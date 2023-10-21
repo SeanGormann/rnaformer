@@ -25,10 +25,9 @@ def count_unique_kmers(sequences, k):
 
 
 
-
 class RNA_Dataset(Dataset):
     def __init__(self, df, mode='train', seed=2023, fold=0, nfolds=4,
-                 mask_only=False, **kwargs):
+                 mask_only=False, perturb = True, s2n = 0.6,  **kwargs):
         self.seq_map = {'A':0,'C':1,'G':2,'U':3}
         self.Lmax = 206
         df['L'] = df.sequence.apply(len)
@@ -41,7 +40,15 @@ class RNA_Dataset(Dataset):
         df_DMS = df_DMS.iloc[split].reset_index(drop=True)
 
         #m = (df_2A3['SN_filter'].values > 0) & (df_DMS['SN_filter'].values > 0)
-        m = (df_2A3['signal_to_noise'].values >= 0.5) & (df_DMS['signal_to_noise'].values >= 0.5)
+        m = (df_2A3['signal_to_noise'].values >= s2n) & (df_DMS['signal_to_noise'].values >= s2n)
+
+        
+        """m1 = (df_2A3['signal_to_noise'].values >= 0.6) & (df_DMS['signal_to_noise'].values >= 0.6)
+        m2 = ((df_2A3['signal_to_noise'].values < 0.6) & (df_2A3['reads'].values > 200) & (df_2A3['signal_to_noise'].values >= 0.5)) & \
+             ((df_DMS['signal_to_noise'].values < 0.6) & (df_DMS['reads'].values > 200) & (df_DMS['signal_to_noise'].values >= 0.5))
+
+        m = m1 | m2 # combine the two masks with a logical OR operation"""
+        
         df_2A3 = df_2A3.loc[m].reset_index(drop=True)
         df_DMS = df_DMS.loc[m].reset_index(drop=True)
 
@@ -60,9 +67,29 @@ class RNA_Dataset(Dataset):
         self.sn_DMS = df_DMS['signal_to_noise'].values
         self.mask_only = mask_only
         self.mode = mode
+        self.perturb = perturb
+        #self.tstep = 0
 
     def __len__(self):
         return len(self.seq)
+
+    def perturb_targets(self, react, react_err, sn):
+        react_err = torch.where(torch.isnan(react_err), torch.tensor(0.001).to(react_err.device), react_err) #handle nan
+        react_err_clipped = torch.clamp(react_err, min=0.001, max=10)
+
+        # Apply log transformation to the clipped error
+        log_transformed_err = torch.log1p(react_err_clipped)
+
+        noise = torch.normal(mean=torch.zeros_like(react), std=log_transformed_err)
+
+        # Create a mask based on the SNR values """Masking all target when commented out"""
+        sn_mask = sn < 1.0
+        noise *= sn_mask.unsqueeze(0).expand_as(noise)
+
+        perturbed_react = react + noise
+
+        return perturbed_react
+
 
     def __getitem__(self, idx):
         seq = self.seq[idx]
@@ -82,26 +109,15 @@ class RNA_Dataset(Dataset):
                                                self.react_err_DMS[idx]],-1))
         sn = torch.FloatTensor([self.sn_2A3[idx],self.sn_DMS[idx]])
 
-        
-        """#### Masking sequences to UNK ####
-        if self.mode == 'train':  
-            mask_length = 4  # Number of contiguous base pairs to mask
+        if self.mode == 'train' and torch.any(sn < 1.0) and self.perturb: # and self.tsetp < 60000:
+            react = self.perturb_targets(react, react_err, sn)
 
-            dynamic_mask_rate = np.random.uniform(low=0.01, high=0.05) 
-            num_positions_to_mask = int((len(seq) - mask_length + 1) * dynamic_mask_rate)
-            mask_positions = np.random.choice(len(seq) - mask_length + 1, num_positions_to_mask, replace=False)
-            
-            global_mask_rate = 0.4
-            if np.random.rand() < global_mask_rate:
-                # Apply the mask
-                for start in mask_positions:
-                    seq[start:start + mask_length] = self.seq_map['UNK']
-                    react[start:start + mask_length] = float('nan')"""
+        #self.tstep += 1
+
 
         return {'seq':torch.from_numpy(seq), 'mask':mask}, \
                {'react':react, 'react_err':react_err,
                 'sn':sn, 'mask':mask}
-
 
 
 class RNA_SE_Dataset(Dataset):

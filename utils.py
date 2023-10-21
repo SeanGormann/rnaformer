@@ -97,6 +97,43 @@ def adjusted_loss(pred, target):
 
 
 
+class AdjustedZLoss(nn.Module):
+    def __init__(self, z_loss_weight=1e-4):
+        super().__init__()
+        self.z_loss_weight = z_loss_weight
+
+    def forward(self, pred, target):
+        # Calculate the adjusted loss
+        p = pred[target['mask'][:, :pred.shape[1]]]
+        y = target['react'][target['mask']].clip(0, 1)
+        individual_losses = F.l1_loss(p, y, reduction='none')
+        mask_non_nan = ~torch.isnan(individual_losses)
+        individual_losses = individual_losses[mask_non_nan]
+
+        sn = target['sn'].clip(.2, 1)
+        #sn = 1 - (1 - torch.sqrt(sn).clip(.3, 1))*2
+        sn = sn.unsqueeze(1).expand(-1, pred.shape[1], -1)
+        sn = sn[target['mask'][:, :pred.shape[1]]]
+
+        # Adjust preds now for later use when calculating Z
+        sn_adjusted_pred = p * sn
+        sn = sn[mask_non_nan]
+
+        adjusted_loss = (individual_losses * sn).mean()
+
+        # Calculate Z loss with SN adjustment
+        Z = sn_adjusted_pred.exp().sum(dim=-1).log()
+        z_loss = (Z**2).mean() * self.z_loss_weight
+
+        # Combine the losses
+        total_loss = adjusted_loss + z_loss
+
+        return total_loss
+
+
+
+
+
 
 """
 def loss(pred, target):

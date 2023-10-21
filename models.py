@@ -195,19 +195,20 @@ class RNA_FNet_Model(nn.Module):
 
 
 ### RNAFORMER
-
+### RNAFORMER
 CFG = {
     'block_size': 206,
 
     'rna_model_dim': 192, # 300,
     'rna_model_num_heads': 6,# 6,   32:1
     'rna_model_num_encoder_layers': 12,# 5,  32:1
-    'rna_model_num_lstm_layers': 2,
-    'rna_model_lstm_dropout': 0.2,
+    'rna_model_num_lstm_layers': 0,
+    'rna_model_lstm_dropout': 0,
     'rna_model_first_dropout': 0.1,
     'rna_model_encoder_dropout': 0.1,
-    'rna_model_mha_dropout': 0.1,
+    'rna_model_mha_dropout': 0,
     'rna_model_ffn_multiplier': 4,
+
 }
 
 class EncoderLayer(nn.Module):
@@ -220,16 +221,18 @@ class EncoderLayer(nn.Module):
         self.layer_norm2 = nn.LayerNorm(CFG['rna_model_dim'])
 
         # Splitting the original sequential block into individual named layers
-        self.linear1 = nn.Linear(CFG['rna_model_dim'], CFG['rna_model_ffn_multiplier'] * CFG['rna_model_dim'])
-        self.dropout1 = nn.Dropout(CFG['rna_model_encoder_dropout'])
-        self.linear2 = nn.Linear(CFG['rna_model_ffn_multiplier'] * CFG['rna_model_dim'], CFG['rna_model_dim'])
-        self.dropout2 = nn.Dropout(CFG['rna_model_encoder_dropout'])
+        self.sequential = nn.Sequential(
+            nn.Linear(CFG['rna_model_dim'], CFG['rna_model_dim']*CFG['rna_model_ffn_multiplier']),
+            nn.GELU(),
+            nn.Linear(CFG['rna_model_dim']*CFG['rna_model_ffn_multiplier'], CFG['rna_model_dim']),
+            nn.Dropout(CFG['rna_model_first_dropout'])
+        )
         #self.linear3 = nn.Linear(CFG['rna_model_dim'], CFG['rna_model_dim'])
         #self.dropout3 = nn.Dropout(CFG['rna_model_encoder_dropout'])
         self.activation = nn.GELU()
 
-
         self.mha_dropout = nn.Dropout(CFG['rna_model_mha_dropout'])
+        self.attention_weights = None
 
     def forward(self, x, padding_mask=None, primer_mask=None):
         if padding_mask is not None and primer_mask is not None:
@@ -243,12 +246,14 @@ class EncoderLayer(nn.Module):
 
         # Using a similar approach to the provided TransformerEncoderLayer code
         # Adding a block for self-attention followed by layer normalization
-        x = self.layer_norm1(x)
-        attn_output, _ = self.mha(x, x, x, key_padding_mask=combined_mask)
+        x_norm = self.layer_norm1(x)
+        attn_output, att_weights = self.mha(x_norm, x_norm, x_norm, key_padding_mask=combined_mask)
+        #attn_output, att_weights = self.mha(self.layer_norm1(x), self.layer_norm1(x), x, key_padding_mask=combined_mask)
+        self.attention_weights = att_weights
         x = x + self.mha_dropout(attn_output)
 
 
-        # Adding a block for the feedforward network followed by layer normalization
+        """# Adding a block for the feedforward network followed by layer normalization
         # Breaking down the original sequential block to individual steps
         ff_output = self.linear1(x)
         ff_output = self.activation(ff_output)
@@ -257,10 +262,9 @@ class EncoderLayer(nn.Module):
         #ff_output = self.activation(ff_output)
         ff_output = self.dropout2(ff_output)
         #ff_output = self.linear3(ff_output)
-        #ff_output = self.dropout3(ff_output)
-        x = self.layer_norm2(x)
-        x = x + ff_output
+        #ff_output = self.dropout3(ff_output)"""
 
+        x = x + self.sequential(self.layer_norm2(x))
 
         return x
 
@@ -281,8 +285,6 @@ class RNAEncoder(nn.Module):
             self.lstm_layers.append(nn.LSTM(input_dim, CFG['rna_model_dim'],
                                             bidirectional=True, batch_first=True, dropout=CFG['rna_model_lstm_dropout'] if i < CFG['rna_model_num_lstm_layers'] - 1 else 0))
 
-        self.step = 0
-        self.training_aug = False
 
     def forward(self, x, mask):
         Lmax = mask.sum(-1).max()
@@ -299,18 +301,6 @@ class RNAEncoder(nn.Module):
         pos = torch.arange(Lmax, device=x.device).unsqueeze(0)
         pos = self.pos_enc(pos)
         #pos = self.pos_enc(pos, Lmax)
-
-        """# To Try For Positional Encoding
-        # Adding the positional encoding with augmentation during training
-        if self.training:
-            # Random shift values for each batch
-            shifts = torch.randint(low=-Lmax, high=0, size=(b_size,), device=x.device)
-
-            pos = pos.repeat(b_size, 1, 1)
-            for i, shift in enumerate(shifts):
-                pos[i] = torch.roll(pos[i], shifts=shift.item(), dims=1)
-        else:
-            pos = pos.repeat(b_size, 1, 1)  # without augmentation"""
 
 
         x = x + pos     #Add positional encoding
@@ -331,8 +321,6 @@ class RNAEncoder(nn.Module):
                 x_packed, _ = lstm(x_packed)
             x, _ = pad_packed_sequence(x_packed, batch_first=True)  # Unpack sequence
 
-        self.step += 1
-
         return x
 
 
@@ -340,7 +328,7 @@ class RNAEncoder(nn.Module):
 class RNAFormer(nn.Module):
     def __init__(self):  # Added parameters for the embedding layer
         super(RNAFormer, self).__init__()
-        self.kmer_embedding = nn.Embedding(4, CFG['rna_model_dim']) #, dropout=0.1)  # Added embedding layer
+        self.seq_embedding = nn.Embedding(4, CFG['rna_model_dim']) #, dropout=0.1)  # Added embedding layer
         self.encoder = RNAEncoder()
         last_dim = CFG['rna_model_dim'] * (2 if CFG['rna_model_num_lstm_layers'] > 0 else 1)
         self.last_linear = nn.Linear(last_dim, 2)
@@ -349,50 +337,16 @@ class RNAFormer(nn.Module):
     def forward(self, x):
         seq = x['seq']
         # Pass the integer-encoded k-mers through the embedding layer
-        embedded_kmers = self.kmer_embedding(seq)#.long())  # Ensure seq is of type long
+        embeded_seq= self.seq_embedding(seq)#.long())  # Ensure seq is of type long
         #embedded_kmers = self.dropout(embedded_kmers)
         mask = x['mask']
-        encoded_seq = self.encoder(embedded_kmers, mask)  # Changed 'seq' to 'embedded_kmers'
+        encoded_seq = self.encoder(embeded_seq, mask)  # Changed 'seq' to 'embedded_kmers'
         encoded_seq = self.dropout(encoded_seq)  # Add dropout before the final layer
 
         output = self.last_linear(encoded_seq)
         #print(f"Input Size: {x['seq'].size()}, mask size: {x['mask'].size()}, output size: {output.size()}")
-        #output = torch.tanh(output)
 
         return output
 
-
-"""class RNAFormer(nn.Module):
-    def __init__(self):  # Added parameters for the embedding layer
-        super(RNAFormer, self).__init__()
-        self.kmer_embedding = nn.Embedding(4, CFG['rna_model_dim']) #, dropout=0.1)  # Added embedding layer
-        self.encoder = RNAEncoder()
-        last_dim = CFG['rna_model_dim'] * (2 if CFG['rna_model_num_lstm_layers'] > 0 else 1)
-        self.penultimate_linear1 = nn.Linear(last_dim, last_dim*2)
-        self.penultimate_linear2 = nn.Linear(last_dim*2, last_dim//2)
-        self.last_linear = nn.Linear(last_dim//2, 2)
-        self.activation = nn.GELU()
-        self.dropout = nn.Dropout(CFG['rna_model_first_dropout'])
-
-    def forward(self, x):
-        seq = x['seq']
-        # Pass the integer-encoded k-mers through the embedding layer
-        embedded_kmers = self.kmer_embedding(seq)#.long())  # Ensure seq is of type long
-        #embedded_kmers = self.dropout(embedded_kmers)
-        mask = x['mask']
-        encoded_seq = self.encoder(embedded_kmers, mask)  # Changed 'seq' to 'embedded_kmers'
-        encoded_seq = self.dropout(encoded_seq)  # Add dropout before the final layer
-
-
-        output = self.penultimate_linear1(encoded_seq)
-        output = self.activation(output)
-        output = self.dropout(output)
-        output = self.penultimate_linear2(output)
-        output = self.activation(output)
-        output = self.last_linear(output)
-        #print(f"Input Size: {x['seq'].size()}, mask size: {x['mask'].size()}, output size: {output.size()}")
-        #output = torch.tanh(output)
-
-        return output"""
 
 
