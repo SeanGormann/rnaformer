@@ -1,5 +1,5 @@
-Length: 115, Average SNR: 10.41
-Length: 155, Average SNR: 9.21
-Length: 170, Average SNR: 6.81
-Length: 177, Average SNR: 2.29
-Length: 206, Average SNR: 8.72
+Length: 115, Average SNR: 10.61
+Length: 155, Average SNR: 9.99
+Length: 170, Average SNR: 7.10
+Length: 177, Average SNR: 2.32
+Length: 206, Average SNR: 8.58
