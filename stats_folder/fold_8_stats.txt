@@ -1,0 +1,5 @@
+Length: 115, Count: 12047, Average SNR: 10.41
+Length: 155, Count: 5503, Average SNR: 9.09
+Length: 170, Count: 13540, Average SNR: 6.81
+Length: 177, Count: 223758, Average SNR: 2.29
+Length: 206, Count: 2304, Average SNR: 8.53
