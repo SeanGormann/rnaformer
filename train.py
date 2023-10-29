@@ -8,7 +8,7 @@ from utils import *
 nfolds = 20
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 bs = 128
-num_workers = 2
+num_workers = 4
 
 df = pd.read_parquet('dataset/train_data.parquet')
 #df  = pd.read_parquet('train_data_filtered.parquet')
@@ -22,27 +22,70 @@ seed_everything(2023)
 
 
 exp1 = {
-    "fname": "rnaformer-96",
-    "fold": 5,
+    "fname": "rnaformer-116",
+    "fold": 15,
     "nfolds": 20,
     "s2n": 0.6,
     "perturb": True,
     "lr": 1e-3,
     "epochs": 100,
 }
+###
 
 exp2 = {
-    "fname": "rnaformer-97",
-    "fold": 8,
-    "nfolds": 10,
+    "fname": "rnaformer-111",
+    "fold": 10,
+    "nfolds": 20,
     "s2n": 0.6,
     "perturb": False,
     "lr": 1e-3,
-    "epochs": 110,
+    "epochs": 100,
+}
 
+exp3 = {
+    "fname": "rnaformer-112",
+    "fold": 10,
+    "nfolds": 20,
+    "s2n": 0.6,
+    "perturb": False,
+    "lr": 1e-3,
+    "epochs": 40,
+}
+###
+
+exp4 = {
+    "fname": "rnaformer-111",
+    "fold": 10,
+    "nfolds": 20,
+    "s2n": 0.6,
+    "perturb": False,
+    "lr": 1e-3,
+    "epochs": 40,
+}
+
+exp5 = {
+    "fname": "rnaformer-112",
+    "fold": 10,
+    "nfolds": 20,
+    "s2n": 0.6,
+    "perturb": False,
+    "lr": 1e-3,
+    "epochs": 40,
+}
+
+exp6 = {
+    "fname": "rnaformer-113",
+    "fold": 10,
+    "nfolds": 20,
+    "s2n": 0.6,
+    "perturb": False,
+    "lr": 1e-3,
+    "epochs": 40,
 }
 
 
+###
+"""
 exp3 = {
     "fname": "rnaformer-98",
     "fold": 0,
@@ -54,17 +97,8 @@ exp3 = {
 
 }
 
-expp = {
-    "fname": "rnaformer-99",
-    "fold": 0,
-    "nfolds": 5,
-    "s2n": 0.6,
-    "perturb": True,
-    "lr": 1e-3,
-    "epochs": 80,
-}
 
-"""
+
 ## Do next
 exp4 = {
     "fname": "rnaformer-99",
@@ -79,85 +113,163 @@ exp4 = {
 }"""
 
 cfg1 = {
-    'rna_model_dim': 192, # 300,
-    'rna_model_num_heads': 6,# 6,   32:1
-    'rna_model_num_encoder_layers': 12,# 5,  32:1
-    'rna_model_num_lstm_layers': 0,
-    'rna_model_lstm_dropout': 0, #0.1,
-    'rna_model_first_dropout': 0.1,
-    'rna_model_encoder_dropout': 0.1,
-    'rna_model_mha_dropout': 0,
-    'rna_model_ffn_multiplier': 5,
+    'dim': 192, # 300,
+    'depth': 14,# 6,   32:1
+    'headsize': 48,# 5,  32:1
+    'ffdim': 4,
 }
+
+
+cfg2 = {
+    'dim': 192, # 300,
+    'depth': 18,# 6,   32:1
+    'headsize': 48,# 5,  32:1
+    'ffdim': 4,
+} 
+
+
+cfg3 = {
+    'dim': 256, # 300,
+    'depth': 12,# 6,   32:1
+    'headsize': 64,# 5,  32:1
+    'ffdim': 4,
+}
+
+
+cfg4 = {
+    'dim': 192, # 300,
+    'depth': 12,# 6,   32:1
+    'headsize': 96,# 5,  32:1
+    'ffdim': 4,
+} 
+
+
+cfg5 = {
+    'dim': 160, # 300,
+    'depth': 12,# 6,   32:1
+    'headsize': 40,# 5,  32:1
+    'ffdim': 4,
+} 
+
+cfg6 = {
+    'dim': 160, # 300,
+    'depth': 10,# 6,   32:1
+    'headsize': 32,# 5,  32:1
+    'ffdim': 4,
+} 
+
 
 
 #experiments = [exp1, exp2, exp3]
 
-experiments = [(expp, cfg1), (exp1, None), (exp2, None),(exp3, None)]
+experiments = [(exp1, cfg1)] #, (exp2, cfg2), (exp3, cfg3)] #, (expp3, cfg3)]
 
 #for fold in [0]: 
 for exp, cfg in experiments: 
-    ds_train = RNA_Dataset(df, mode='train', fold=exp["fold"], nfolds=exp["nfolds"], perturb = exp["perturb"], s2n = exp["s2n"])
-    ds_train_len = RNA_Dataset(df, mode='train', fold=exp["fold"],
-                nfolds=exp["nfolds"], mask_only=True, perturb = exp["perturb"], s2n = exp["s2n"])
-    sampler_train = torch.utils.data.RandomSampler(ds_train_len)
-    len_sampler_train = LenMatchBatchSampler(sampler_train, batch_size=bs,
-                drop_last=True)
-    dl_train = DeviceDataLoader(torch.utils.data.DataLoader(ds_train,
-                batch_sampler=len_sampler_train, num_workers=num_workers,
-                persistent_workers=True), device)
-
-    ds_val = RNA_Dataset(df, mode='eval', fold=exp["fold"], nfolds=exp["nfolds"], perturb = exp["perturb"], s2n = exp["s2n"])
-    ds_val_len = RNA_Dataset(df, mode='eval', fold=exp["fold"], nfolds=exp["nfolds"],
-               mask_only=True, perturb = exp["perturb"], s2n = exp["s2n"])
-    sampler_val = torch.utils.data.SequentialSampler(ds_val_len)
-    len_sampler_val = LenMatchBatchSampler(sampler_val, batch_size=bs,
-               drop_last=False)
-    dl_val= DeviceDataLoader(torch.utils.data.DataLoader(ds_val,
-               batch_sampler=len_sampler_val, num_workers=num_workers), device)
-    gc.collect()
-
-    print("Preparing the model...")
-    data = DataLoaders(dl_train, dl_val)
-
-    if cfg == None:
-        model = RNA_Model()
-    else:
-        CFG = cfg
-        model = RNA_Former()
-        print(f'Number of parameters: {sum(p.numel() for p in model.parameters())}')
+    for fold in [18]:  #fold exp["fold"]
+        ds_train = RNA_Dataset(df, mode='train', fold=fold, nfolds=exp["nfolds"], perturb = exp["perturb"], s2n = exp["s2n"])
+        ds_train_len = RNA_Dataset(df, mode='train', fold=fold,
+                    nfolds=exp["nfolds"], mask_only=True, perturb = exp["perturb"], s2n = exp["s2n"])
+        sampler_train = torch.utils.data.RandomSampler(ds_train_len)
+        len_sampler_train = LenMatchBatchSampler(sampler_train, batch_size=bs,
+                    drop_last=True)
+        dl_train = DeviceDataLoader(torch.utils.data.DataLoader(ds_train,
+                    batch_sampler=len_sampler_train, num_workers=num_workers,
+                    persistent_workers=True), device)
+    
+        ds_val = RNA_Dataset(df, mode='eval', fold=fold, nfolds=exp["nfolds"], perturb = exp["perturb"], s2n = exp["s2n"])
+        ds_val_len = RNA_Dataset(df, mode='eval', fold=fold, nfolds=exp["nfolds"],
+                   mask_only=True, perturb = exp["perturb"], s2n = exp["s2n"])
+        sampler_val = torch.utils.data.SequentialSampler(ds_val_len)
+        len_sampler_val = LenMatchBatchSampler(sampler_val, batch_size=bs,
+                   drop_last=False)
+        dl_val= DeviceDataLoader(torch.utils.data.DataLoader(ds_val,
+                   batch_sampler=len_sampler_val, num_workers=num_workers), device)
+        gc.collect()
+    
+        print("Preparing the model...")
+        data = DataLoaders(dl_train, dl_val)
+    
+        """if cfg == None:
+            model = RNA_Model()
+        else:
+            model = RNAFormer(cfg)
+            print(f'Number of parameters: {sum(p.numel() for p in model.parameters())}')"""
+    
+        dim = cfg["dim"]
+        depth = cfg["depth"]
+        hs = cfg["headsize"]
+        ffdim = cfg["ffdim"]
+        model = RNA_Model(dim=dim, depth=depth, head_size=hs, ffdim=ffdim)
+            
+        model = model.to(device)
+        z_loss = AdjustedZLoss(z_loss_weight=1e-3)
+    
+        print("Starting training...")
+        learn = Learner(
+            data, model, loss_func=z_loss, 
+            cbs=[GradientClip(3.0)],  # Added PrintLossCallback here
+            metrics=[MAE()]
+        ).to_fp16()
         
-    model = model.to(device)
-    z_loss = AdjustedZLoss(z_loss_weight=1e-3)
+        OUT = "models/"
+        #fname = "rnaformer-90"
+        fname = exp["fname"]
+        lr = exp["lr"]
+        epochs = exp["epochs"]
+        
+        learn.fit_one_cycle(epochs, lr_max=lr, wd=0.05, pct_start=0.008)
+        #learn.fit_one_cycle(320, lr_max=1e-3, wd=0.05, pct_start=0.002)
+        
+        print("Training finished. Saving the model...")
+        model_path = os.path.join(OUT, f'{fname}_{fold}.pth')
+        torch.save(learn.model.state_dict(), model_path)
+        
+        torch.cuda.empty_cache()
+        gc.collect()
+        
+        # Analyze the validation dataset for sample lengths and average SNR
+        print(f"Analyzing sample lengths and average SNR values for fold {fold}...")
+        length_snr_map = {}
+        for batch in dl_val:
+            inputs, targets = batch
+            lengths = inputs['mask'].sum(dim=1).cpu().numpy()
+            sn_values = targets['sn'][:, 0].cpu().numpy()
+    
+            for length, sn in zip(lengths, sn_values):
+                if length in length_snr_map:
+                    length_snr_map[length].append(sn)
+                else:
+                    length_snr_map[length] = [sn]
+    
+        length_avg_snr_map = {length: sum(sn_list) / len(sn_list) for length, sn_list in length_snr_map.items()}
 
-    print("Starting training...")
-    learn = Learner(
-        data, model, loss_func=z_loss, 
-        cbs=[GradientClip(3.0)],  # Added PrintLossCallback here
-        metrics=[MAE()]
-    ).to_fp16()
+        # Define the absolute path to the folder to save fold stats
+        current_directory = os.path.dirname(os.path.abspath(__file__))  # Get the directory of the script
+        stats_folder = os.path.join(current_directory, "stats_folder")
+        
+        # Ensure the stats folder exists
+        if not os.path.exists(stats_folder):
+            os.makedirs(stats_folder)
+
+        print(f"Analyzing sample lengths and average SNR values for fold {fold}...")
+        length_count_map, length_avg_snr_map = analyze_dataloader(dl_train)
+        stats_file = save_fold_stats(length_count_map, length_avg_snr_map, fold, stats_folder)
     
-    OUT = "models/"
-    #fname = "rnaformer-90"
-    fname = exp["fname"]
-    lr = exp["lr"]
-    epochs = exp["epochs"]
+        # Display the results
+        for length, avg_snr in sorted(length_avg_snr_map.items()):
+            print(f"Fold {fold}, Length: {length}, Count: {length_count_map[length]}, Average SNR: {avg_snr:.2f}")
+        
+            
+        # Push model and stats to GitHub
+        print(f"Pushing the model and stats for fold {fold} to GitHub...")
+        push_to_github(model_path, f"Add trained model for fold {fold}")
+        push_to_github(stats_file, f"Add fold {fold} stats")
     
-    learn.fit_one_cycle(epochs, lr_max=lr, wd=0.05, pct_start=0.008)
-    #learn.fit_one_cycle(320, lr_max=1e-3, wd=0.05, pct_start=0.002)
+        torch.cuda.empty_cache()
+        gc.collect()
     
-    print("Training finished. Saving the model...")
-    model_path = os.path.join(OUT, f'{fname}.pth')
-    torch.save(learn.model.state_dict(), model_path)
-    
-    torch.cuda.empty_cache()
-    gc.collect()
-    
-    print("Pushing the model to GitHub...")
-    commit_message = f"Add trained model {fname}"
-    push_to_github(model_path, commit_message)
-    
-    print("Done!")
+        print(f"Fold {fold} processing done!\n")
 
 
 

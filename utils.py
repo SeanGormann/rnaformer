@@ -16,6 +16,15 @@ import subprocess
 #### Grad scaler
 # Fix fastai bug to enable fp16 training with dictionaries
 
+def seed_everything(seed):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
+
 
 def flatten(o):
     "Concatenate all collections and items as a generator"
@@ -214,3 +223,34 @@ def push_to_github(file_path, commit_message):
     except subprocess.CalledProcessError as e:
         print(f"Failed to push {file_path} to GitHub.")
         print(str(e))
+
+
+def analyze_dataloader(dl):
+    length_count_map = {}
+    length_sum_snr_map = {}
+
+    for batch in dl:
+        seqs, targets = batch
+        seq_lengths = seqs['mask'].sum(dim=1).cpu().numpy()  # Lengths of sequences
+        sn_values = targets['sn'][:, 0].cpu().numpy()  # SNR values
+
+        for length, sn in zip(seq_lengths, sn_values):
+            if length in length_count_map:
+                length_count_map[length] += 1
+                length_sum_snr_map[length] += sn
+            else:
+                length_count_map[length] = 1
+                length_sum_snr_map[length] = sn
+
+    # Calculating average SNR for each length
+    length_avg_snr_map = {length: length_sum_snr_map[length] / length_count_map[length] 
+                          for length in length_sum_snr_map}
+
+    return length_count_map, length_avg_snr_map
+
+def save_fold_stats(length_count_map, length_avg_snr_map, fold, folder):
+    stats_file = os.path.join(folder, f"fold_{fold}_stats.txt")
+    with open(stats_file, 'w') as file:
+        for length in sorted(length_count_map.keys()):
+            file.write(f"Length: {length}, Count: {length_count_map[length]}, Average SNR: {length_avg_snr_map[length]:.2f}\n")
+    return stats_file
