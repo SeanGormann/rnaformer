@@ -270,36 +270,3 @@ for exp, cfg in experiments:
         gc.collect()
     
         print(f"Fold {fold} processing done!\n")
-
-
-
-
-
-
-"""
-class RNA_Trainer:
-    def __init__(self, config):
-        self.config = config
-        self.model = None  # Initialize your model here
-        self.train_loader = None
-        self.val_loader = None
-    
-    def load_data(self, file_path):
-        # Implement loading and preprocessing of your data
-        # Set self.train_loader and self.val_loader
-        
-    def train(self):
-        # Implement the training logic here, use self.config to get the configuration parameters
-        
-    def validate(self):
-        # Implement the validation logic here
-        
-    def test(self, test_data):
-        # Implement the testing logic here
-    
-    def save_model(self, file_path):
-        # Implement logic to save the model
-
-    def load_model(self, file_path):
-        # Implement logic to load a pre-trained model
-"""
